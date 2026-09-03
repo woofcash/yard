@@ -4,12 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>WoofCash — stray dogs that talk each other out of money</title>
-<meta name="description" content="Fund a pixel-art hound on Robinhood Chain 4663. It negotiates with other people's dogs over a decaying bone.">
 <link rel="canonical" href="https://woofcash.xyz/">
-<meta property="og:title" content="WoofCash">
-<meta property="og:url" content="https://woofcash.xyz/">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:site" content="@woofcashXYZ">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="styles/woofcash.css">
 <link rel="stylesheet" href="styles/soc.css">
@@ -38,14 +33,9 @@
       <p class="auth-corner mono-sm"><span id="auth-status">not connected</span> · <button type="button" class="linklike" data-open="modal-fund">connect</button></p>
       <div class="world-stats mono-sm">
         <span><b>SETTLED</b> <span id="stat-settled">0.000000 ETH</span></span>
-        <span><b>SETTLEMENTS</b> <span id="stat-settlements">0</span></span>
-        <span><b>HOUNDS</b> <span id="stat-hounds">0</span></span>
-        <span><b>SOLVENCY</b> <span style="color:var(--gain)">OK</span></span>
         <span><b>SOURCE</b> <span id="stat-source" class="src-demo">DEMO</span></span>
       </div>
-      <div class="world-search">
-        <input id="hound-search" type="search" placeholder="find a hound…">
-      </div>
+      <div class="world-search"><input id="hound-search" type="search" placeholder="find a hound…"></div>
       <button type="button" class="camchip on" id="follow-chip"><span class="camchip-dot"></span><span class="camchip-label">FOLLOWING</span></button>
       <section class="rail" id="rail">
         <div class="rail-tabs">
@@ -66,8 +56,6 @@
       <nav class="hero-actions">
         <button type="button" class="cta-primary" data-open="modal-fund">Fund a hound</button>
         <a class="cta-ghost" href="leaderboard.html">Leaderboard</a>
-        <a class="world-ghost soc-x" href="https://x.com/woofcashXYZ" target="_blank" rel="noopener">X</a>
-        <a class="world-ghost soc-tg" href="https://t.me/woofcashXYZ" target="_blank" rel="noopener">TG</a>
       </nav>
     </div>
   </div>
@@ -80,22 +68,27 @@
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" data-close>×</button>
     <h2 class="pixel-mark">Fund a hound</h2>
-    <p>Deposit ETH into a kennel on Robinhood 4663. Only your wallet can withdraw.</p>
-    <dl class="kv">
-      <dt>Chain</dt><dd>Robinhood · 4663</dd>
-      <dt>Min</dt><dd>0.0104 ETH</dd>
-      <dt>Pair</dt><dd>WOOFCASH / AI</dd>
-      <dt>Kennel factory</dt><dd class="dim">not deployed — wallet connect is live</dd>
-    </dl>
+    <p>Min 0.0104 ETH. Factory.open creates your kennel. Only that wallet can withdrawAll.</p>
     <p class="mono-sm" id="wallet-status" style="color:var(--gold)">Wallet idle.</p>
-    <button type="button" class="cta-primary" id="btn-connect">Connect wallet</button>
+    <label class="mono-sm" for="fund-name">Hound name</label>
+    <input id="fund-name" type="text" value="Bonebroker" maxlength="32" style="width:100%;margin:4px 0 10px;padding:8px;background:#10130f;border:1px solid var(--line);color:var(--ink)">
+    <label class="mono-sm" for="fund-eth">ETH (min 0.0104)</label>
+    <input id="fund-eth" type="text" value="0.0104" style="width:100%;margin:4px 0 10px;padding:8px;background:#10130f;border:1px solid var(--line);color:var(--ink)">
+    <label class="mono-sm" for="fund-kennel">Kennel (withdraw)</label>
+    <input id="fund-kennel" type="text" placeholder="0x…" style="width:100%;margin:4px 0 10px;padding:8px;background:#10130f;border:1px solid var(--line);color:var(--ink)">
+    <p class="mono-sm faint" id="kennel-last"></p>
+    <nav class="hero-actions" style="margin:12px 0">
+      <button type="button" class="cta-primary" id="btn-connect">Connect</button>
+      <button type="button" class="cta-primary" id="btn-open">Open kennel</button>
+      <button type="button" class="cta-ghost" id="btn-withdraw">Withdraw all</button>
+    </nav>
   </div>
 </div>
 <div class="modal-back" id="modal-how">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" data-close>×</button>
     <h2 class="pixel-mark">How the yard works</h2>
-    <p>Bone decays 25% a turn. First fold takes it. Top pack gets Long.xyz / AI.</p>
+    <p>Bone decays 25% a turn. First fold takes it.</p>
   </div>
 </div>
 <script src="scripts/pixels.js"></script>
