@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaderboard — WoofCash</title>
+<meta name="description" content="Every hound on Robinhood Chain 4663, ranked by bones taken and settlements survived.">
+<link rel="stylesheet" href="styles/woofcash.css">
+</head>
+<body>
+<main class="page">
+  <nav class="page-nav">
+    <a class="world-ghost" href="index.html">The yard</a>
+    <a class="world-ghost" href="yards.html">Yards</a>
+    <a class="world-ghost" href="about.html">The story</a>
+    <a class="world-ghost" href="logs.html">Logs</a>
+  </nav>
+
+  <h1 class="pixel-mark">Leaderboard</h1>
+  <p class="lede">Robinhood Chain 4663. Ranked by bones taken, then by settlements survived. A hound that never folds climbs slowly and never falls.</p>
+
+  <h2>Packs</h2>
+  <table class="board" id="pack-board">
+    <thead><tr><th>#</th><th>Pack</th><th>Members</th><th>Bones taken</th><th>Launch slot</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Hounds</h2>
+  <table class="board" id="hound-board">
+    <thead><tr><th>#</th><th>Hound</th><th>Pack</th><th>Kennel</th><th>Bones</th><th>Folds</th><th>Run</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <p class="foot">Numbers on this page are seeded for the pre-launch build. They are replaced by indexer reads at launch — no number is shown here that will not be verifiable on chain.</p>
+</main>
+
+<script src="scripts/pixels.js"></script>
+<script src="scripts/data.js"></script>
+<script>
+wcSetFavicon();
+
+function seedNum(str, mod) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 33 + str.charCodeAt(i)) >>> 0;
+  return h % mod;
+}
+
+const rows = SEED_HOUNDS.map((h, i) => ({
+  name: h.name,
+  kennel: h.kennel,
+  pack: PACKS[i % PACKS.length],
+  bones: (seedNum(h.kennel, 9000) / 100000 + 0.004),
+  folds: seedNum(h.name, 37),
+  run: seedNum(h.kennel + 'r', 61)
+})).sort((a, b) => b.bones - a.bones);
+
+const hb = document.querySelector('#hound-board tbody');
+rows.forEach((r, i) => {
+  const tr = document.createElement('tr');
+  const td = html => { const c = document.createElement('td'); c.innerHTML = html; return c; };
+  const rank = td('<span class="rank">' + (i + 1) + '</span>');
+  const who = document.createElement('td');
+  who.className = 'sprite-cell';
+  who.appendChild(wcSpriteCanvas('sit', r.kennel, 1));
+  who.appendChild(document.createTextNode(r.name));
+  tr.append(rank, who,
+    td('<span style="color:' + r.pack.color + '">' + r.pack.tag + '</span>'),
+    td('<span class="dim" style="font-size:11.5px">' + r.kennel.slice(0, 10) + '…' + r.kennel.slice(-4) + '</span>'),
+    td('<span class="pos">' + r.bones.toFixed(5) + '</span>'),
+    td('<span class="neg">' + r.folds + '</span>'),
+    td(r.run));
+  hb.appendChild(tr);
+});
+
+const packTotals = PACKS.map(p => ({
+  pack: p,
+  members: rows.filter(r => r.pack.tag === p.tag).length,
+  bones: rows.filter(r => r.pack.tag === p.tag).reduce((s, r) => s + r.bones, 0)
+})).sort((a, b) => b.bones - a.bones);
+
+const pb = document.querySelector('#pack-board tbody');
+packTotals.forEach((p, i) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><span class="rank">' + (i + 1) + '</span></td>' +
+    '<td style="color:' + p.pack.color + '">' + p.pack.name + ' <span class="dim">' + p.pack.tag + '</span></td>' +
+    '<td>' + p.members + '</td>' +
+    '<td class="pos">' + p.bones.toFixed(5) + '</td>' +
+    '<td>' + (i === 0
+      ? '<span style="color:var(--gold)">OPEN · can spend now</span>'
+      : '<span class="dim">locked</span>') + '</td>';
+  pb.appendChild(tr);
+});
+</script>
+</body>
+</html>
