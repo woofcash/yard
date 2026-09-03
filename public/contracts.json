@@ -1,15 +1,11 @@
 {
   "chainId": 4663,
+  "kennelFactory": "0xA87D37Ef625Acdc3eC6D8A9cFc376305D8C47232",
   "token": {
     "name": "WoofCash",
     "symbol": "WOOFCASH",
     "address": null,
     "pair": "AI",
-    "pairAddress": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18",
-    "launchpad": "https://app.long.xyz/"
-  },
-  "kennelFactory": null,
-  "site": "https://woofcash.xyz",
-  "x": "https://x.com/woofcashXYZ",
-  "telegram": "https://t.me/woofcashXYZ"
+    "pairAddress": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18"
+  }
 }
