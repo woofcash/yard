@@ -109,7 +109,6 @@ function tick() {
   const now = Date.now();
   if (now - lastTick < 2800) return;
   lastTick = now;
-
   if (!live) {
     const a = pick(hounds);
     let b = pick(hounds);
@@ -129,7 +128,6 @@ function tick() {
     };
     return;
   }
-
   live.i += 1;
   const a = hounds.find((h) => h.kennel === live!.a)!;
   const b = hounds.find((h) => h.kennel === live!.b)!;
@@ -171,6 +169,30 @@ function tick() {
     if (feed.length > 40) feed.pop();
     live = null;
   }
+}
+
+export function depositKennel(kennel: string, amountWei: string) {
+  const h = hounds.find((x) => x.kennel.toLowerCase() === kennel.toLowerCase());
+  if (!h) return { ok: false, error: "unknown kennel" };
+  let eth = 0;
+  try {
+    eth = Number(BigInt(amountWei)) / 1e18;
+  } catch {
+    return { ok: false, error: "bad amount" };
+  }
+  if (!Number.isFinite(eth) || eth < 0.0104) {
+    return { ok: false, error: "min deposit 0.0104 ETH" };
+  }
+  h.balanceEth += eth;
+  return { ok: true, kennel: h.kennel, balanceEth: h.balanceEth };
+}
+
+export function withdrawKennel(kennel: string) {
+  const h = hounds.find((x) => x.kennel.toLowerCase() === kennel.toLowerCase());
+  if (!h) return { ok: false, error: "unknown kennel" };
+  const out = h.balanceEth;
+  h.balanceEth = 0;
+  return { ok: true, kennel: h.kennel, withdrawnEth: out };
 }
 
 export function yardSnapshot() {
