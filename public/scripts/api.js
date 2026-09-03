@@ -1,4 +1,9 @@
-/* WoofCash — data layer adapter. */
+/* WoofCash — data layer adapter.
+   Talks to the token/mechanics backend at /api/yard, /api/kennel/*.
+   world.js falls back to its own local simulation whenever this returns
+   null (endpoint not deployed yet, network error, or malformed payload) —
+   the yard is never empty, but it is never fake once the API is live. */
+
 const WC_API_POLL_MS = 4000;
 
 async function wcFetchYard() {
