@@ -4,8 +4,9 @@
   "token": {
     "name": "WoofCash",
     "symbol": "WOOFCASH",
-    "address": null,
+    "address": "0xe9e416d20ef25e35e0bec28b82e8b75eef351e18",
     "pair": "AI",
-    "pairAddress": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18"
+    "pairAddress": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18",
+    "launchpad": "https://app.long.xyz/"
   }
 }
