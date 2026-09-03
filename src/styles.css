@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0d13;
+  --color-surface: #15181f;
+  --color-raised: #20242c;
+  --color-fg: #eceef4;
+  --color-muted: #a1a5ac;
+  --color-faint: #767a83;
+  --color-line: #333842;
+  --color-gold: #e8cd62;
+  --color-gold-dim: #937800;
+  --color-live: #e8cd62;
+  --color-deal: #f75d59;
+  --color-gain: #59d38c;
+  --color-ai: #73b0ee;
+  --font-display: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", monospace;
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --radius: 2px;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html, body, #root {
+    min-height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+  }
+  ::selection {
+    background: var(--color-gold);
+    color: var(--color-bg);
+  }
+}
+
+@keyframes tick {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.live-dot { animation: tick 1.4s ease-in-out infinite; }
+.rise-in { animation: rise 0.35s ease-out both; }
+.pixel-mark {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot, .rise-in { animation: none; }
+}
