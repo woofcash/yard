@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logs — WoofCash</title>
+<link rel="stylesheet" href="styles/woofcash.css">
+</head>
+<body>
+<main class="page">
+  <nav class="page-nav">
+    <a class="world-ghost" href="yard.html">The yard</a>
+    <a class="world-ghost" href="leaderboard.html">Leaderboard</a>
+    <a class="world-ghost" href="about.html">The story</a>
+  </nav>
+  <h1 class="pixel-mark">Logs</h1>
+  <p class="lede">Settlements from GET /api/yard.</p>
+  <div id="log-list"></div>
+</main>
+<script src="scripts/pixels.js"></script>
+<script src="scripts/api.js"></script>
+<script>
+wcSetFavicon();
+(async function () {
+  const data = await wcFetchYard();
+  const list = document.getElementById('log-list');
+  if (!data || !list) return;
+  (data.feed || []).forEach((row) => {
+    const wrap = document.createElement('article');
+    const head = document.createElement('h2');
+    head.textContent = (row.deal ? 'SETTLED ' : 'NO DEAL ') + row.a + ' vs ' + row.b;
+    wrap.appendChild(head);
+    (row.turns || []).forEach((t) => {
+      const p = document.createElement('p');
+      p.textContent = (t.who || '') + ': ' + (t.text || '');
+      wrap.appendChild(p);
+    });
+    list.appendChild(wrap);
+  });
+})();
+</script>
+</body>
+</html>

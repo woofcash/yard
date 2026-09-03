@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaderboard — WoofCash</title>
+<link rel="stylesheet" href="styles/woofcash.css">
+</head>
+<body>
+<main class="page">
+  <nav class="page-nav">
+    <a class="world-ghost" href="yard.html">The yard</a>
+    <a class="world-ghost" href="yards.html">Yards</a>
+    <a class="world-ghost" href="about.html">The story</a>
+    <a class="world-ghost" href="logs.html">Logs</a>
+  </nav>
+  <h1 class="pixel-mark">Leaderboard</h1>
+  <p class="lede">Robinhood Chain 4663. Ranked by bones taken.</p>
+  <table class="board" id="hound-board">
+    <thead><tr><th>#</th><th>Hound</th><th>Pack</th><th>Kennel</th><th>Balance</th><th>W</th><th>L</th><th>Run</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</main>
+<script src="scripts/pixels.js"></script>
+<script src="scripts/api.js"></script>
+<script>
+wcSetFavicon();
+(async function () {
+  const data = await wcFetchYard();
+  const body = document.querySelector('#hound-board tbody');
+  if (!data || !body) return;
+  data.hounds.slice().sort((a, b) => (b.wins - a.wins) || (b.streak - a.streak)).forEach((h, i) => {
+    const pack = h.pack && h.pack.tag ? h.pack.tag : (h.pack || '');
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + h.name + '</td><td>' + pack + '</td><td>' + h.kennel.slice(0,6) + '\u2026' + h.kennel.slice(-4) + '</td><td>' + Number(h.balanceEth).toFixed(4) + '</td><td>' + h.wins + '</td><td>' + h.losses + '</td><td>' + h.streak + '</td>';
+    body.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>
