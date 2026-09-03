@@ -5,7 +5,7 @@ export const Route = createFileRoute("/api/yard")({
   server: {
     handlers: {
       GET: async () =>
-        Response.json(yardSnapshot(), {
+        Response.json(await yardSnapshot(), {
           headers: { "cache-control": "no-store" },
         }),
     },
