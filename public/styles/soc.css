@@ -1,0 +1,5 @@
+.soc-x { color:#0a0c0b; background:#f0b03c; border-color:#f0b03c; }
+.soc-x:hover { color:#0a0c0b; background:#ffc85a; border-color:#ffc85a; }
+.soc-tg { color:#0a0c0b; background:#78c47f; border-color:#78c47f; }
+.soc-tg:hover { color:#0a0c0b; background:#93d899; border-color:#93d899; }
+.brand-logo { width:36px; height:36px; image-rendering:pixelated; border:1px solid var(--line); background:#0a0c0b; display:block; }
