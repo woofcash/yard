@@ -1,0 +1,48 @@
+export const CHAINS = [
+  {
+    key: "robinhood",
+    label: "Robinhood",
+    chainId: 4663,
+    color: "#78c47f",
+    href: "/",
+    live: true,
+    nativeSymbol: "ETH",
+    launchpadName: "Long.xyz",
+    launchpadUrl: "https://app.long.xyz/",
+  },
+  {
+    key: "bnb",
+    label: "BNB",
+    chainId: 56,
+    color: "#e8c65a",
+    href: null,
+    live: false,
+    nativeSymbol: "BNB",
+    launchpadName: "flap.sh",
+    launchpadUrl: null,
+  },
+  {
+    key: "base",
+    label: "Base",
+    chainId: 8453,
+    color: "#4f8cff",
+    href: null,
+    live: false,
+    nativeSymbol: "ETH",
+    launchpadName: "Clanker",
+    launchpadUrl: null,
+  },
+  {
+    key: "solana",
+    label: "Solana",
+    chainId: 101101,
+    color: "#9b8cff",
+    href: null,
+    live: false,
+    nativeSymbol: "SOL",
+    launchpadName: "pump.fun",
+    launchpadUrl: null,
+  },
+] as const;
+
+export const HOME_CHAIN = CHAINS[0];
