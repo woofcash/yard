@@ -25,8 +25,9 @@ logs.html                   full negotiation transcripts
 chain/robinhood/            legacy path, redirects to /
 styles/woofcash.css         all styling
 scripts/pixels.js           procedural pixel dog generator (24x24, no spritesheet)
-scripts/data.js             brand config, yards, hounds, packs, dialogue banks
-scripts/world.js            arena engine: roaming, encounters, settlement, feeds
+scripts/data.js             brand config, yards, hounds, packs, dialogue banks (demo fallback only)
+scripts/api.js              /api/yard + /api/kennel/* client — the ONLY file that talks to the backend
+scripts/world.js            arena engine: canvas, HUD, camera — reads live data when api.js has it
 ```
 
 ## The dogs
@@ -52,13 +53,50 @@ console.log(f.wcRasterDog('0xdead').grid.map(r=>r.map(c=>c?'#':' ').join('')).jo
 ## Game loop
 
 1. 30 hounds roam a 1600×1000 yard. Each coat is derived deterministically from its kennel address.
-2. Every 7–13 s two idle hounds are paired. They walk to each other and sit.
+2. Every 7–13 s two idle hounds are paired (demo mode only — see below). They walk to each other and sit.
 3. A **bone** (bounty) appears, worth more than either dog's exposed stake. It decays **25% per turn**.
 4. Four turns of argument stream into the theatre panel on the left.
 5. Resolution: one folds (`SETTLED`, bone transfers, streak +1) or nobody does (`NO DEAL`, bone burns).
 6. Result pushes to the fetch feed, the ticker, and the HUD counters.
 
-Swap `resolveEncounter()` in `scripts/world.js` for indexer events when the backend is live. The dialogue banks in `scripts/data.js` (`LINES.open / counter / press / close_deal / close_nodeal`) are placeholders for real agent output.
+## Data contract — demo vs. live
+
+`world.js` never generates fake wins on its own once a backend exists. Every 4s it calls
+`wcFetchYard()` (in `scripts/api.js`), which hits `GET /api/yard`:
+
+```ts
+GET /api/yard
+{
+  chainId: 4663,
+  token: { name: "WoofCash", ticker: "WOOFCASH", pair: "WOOFCASH/AI" },
+  stats: { settledEth: number, settlements: number, hounds: number },
+  hounds: [{ name, kennel, pack, badge, balanceEth, wins, losses, streak }],
+  live: null | {
+    a, b,              // kennel address OR name — either matches the roster
+    boneEth, decay: 0.75, i, deal: boolean | null,
+    turns: [{ who, text }]
+  },
+  feed: [{ a, b, kA, kB, deal, amountEth, boneEth, ts, turns }]
+}
+
+POST /api/kennel/deposit   { kennel, amountWei }
+POST /api/kennel/withdraw  { kennel }   // only owner
+```
+
+- **Endpoint answers with valid JSON** → the arena switches to `mode = 'live'`. Hound roster,
+  stats, the active negotiation, and the feed all come from the response. Positions/movement in
+  the yard stay client-side (the contract has no notion of x/y — that's presentation only).
+  The `SOURCE` pill in the HUD turns green and reads `LIVE`.
+- **Endpoint 404s, times out, or returns malformed JSON** → nothing crashes. The arena falls back
+  to the self-contained demo simulation (`startDemoEncounter` / `resolveDemoEncounter` in
+  `world.js`, dialogue from `scripts/data.js`). The `SOURCE` pill reads `DEMO` in gold.
+- Rules are identical in both modes: min deposit **0.0104 ETH**, bone decays **×0.75 per turn**,
+  first fold takes the bone, mutual holdout burns it, pair is **Long.xyz · WOOFCASH/AI · Robinhood 4663**.
+
+**Do not edit `pixels.js`, the canvas draw loop, or the HUD markup to wire up the backend** — every
+integration point is `scripts/api.js` (add auth headers, change the base URL, add retries there) plus
+the small adapter block in `world.js` (`syncRoster`, `applyLiveEncounter`, `normalizeFeedEntry`,
+`pollApi`). That's the entire seam between design and mechanics.
 
 ## Terminology map (from the cat-yard original)
 
@@ -71,6 +109,15 @@ Fonts load from Google Fonts; self-host `Pixelify Sans` + `IBM Plex Mono` into `
 
 ## Known gaps before mainnet
 
-- Kennel factory not deployed; "Fund a hound" is an explainer modal, not a wallet flow.
-- Leaderboard and logs use seeded numbers. They are labelled as such on-page — keep that label until the indexer is live.
-- No wallet connect, no RPC calls anywhere in this build.
+- Kennel factory not deployed; "Fund a hound" is an explainer modal, not a wallet flow yet.
+  Wiring it to `POST /api/kennel/deposit` + a wallet signer is the token layer's job, not this repo's.
+- Leaderboard and logs still use seeded numbers — they're a separate static page, not yet on the
+  `/api/yard` feed. Port them to the same contract once the backend is live.
+- No wallet connect, no RPC calls in `scripts/*` — that boundary is intentional (see Data contract above).
+
+## Branching
+
+`main` is a separate Vite + TanStack app with its own token/mechanics work in progress.
+This design (canvas, pixel-dog generator, HUD, theatre, feeds) lives on `claude/pixel-dog-arena`
+pending integration — see the Data contract section for the exact seam. Do not merge over `main`
+without an explicit decision to replace it; check with the project owner first.

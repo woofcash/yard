@@ -592,3 +592,7 @@ table.board tr:hover td { background: rgba(120,196,127,0.05); }
   .replay-card { width: calc(100% - 32px); bottom: 40px; }
   .hero { text-align: left; }
 }
+
+/* ---------- data-source honesty pill (LIVE once /api/yard answers) ---------- */
+.src-live { color: var(--gain); }
+.src-demo { color: var(--gold); }

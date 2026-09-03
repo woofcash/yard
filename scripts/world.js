@@ -1,8 +1,8 @@
 /* WoofCash — yard arena engine.
-   A field of procedurally generated pixel hounds that wander, meet, negotiate
-   over a decaying bone, and settle on chain. Everything below is a front-end
-   simulation of the protocol loop; swap resolveEncounter() and the feeds for
-   real indexer events when the backend is live. */
+   Canvas, HUD, and hound rendering are untouched — this file only decides
+   WHERE the game state comes from: /api/yard when it answers, or the
+   built-in local simulation when it doesn't (pre-launch, offline, error).
+   See scripts/api.js for the wire format and README.md for the contract. */
 
 (function () {
   'use strict';
@@ -13,9 +13,10 @@
   const PX = 3;                 // pixel scale of a 24x24 hound
   const DOG = 24 * PX;
   const SPEED = 24;
-  const MEET_EVERY = [6, 12];
-  const TURN_MS = 2600;
+  const MEET_EVERY = [6, 12];   // demo-mode only
+  const TURN_MS = 2600;         // demo-mode only
   const DECAY = 0.75;
+  const RESULT_HOLD_MS = 6000;  // how long a settled pair stays put before roaming off
   const BADGES = ['×', '+', '◇', '·', '≡', '^', '□', '…', '○', '!', '△', '='];
 
   const canvas = document.getElementById('yard-canvas');
@@ -26,19 +27,22 @@
   let following = true;
 
   // ---------- state ----------
-  const hounds = [];
-  const feed = [];
-  let live = null;
+  const hounds = [];            // visual roster; positions are always client-side
+  let feed = [];                // rendered feed — demo-generated or mirrored from API
+  let live = null;              // current encounter shown in the theatre
   let replay = null;
-  let nextMeet = 2.5;
+  let nextMeet = 2.5;           // demo-mode encounter timer
   let settledTotal = 0;
-  let settlementCount = 2521;
+  let settlementCount = 2521;   // seeded until the API reports a real number
   let tab = 'fetches';
+
+  let mode = 'demo';            // 'demo' | 'live' — flips the moment /api/yard answers
+  let apiTried = false;
 
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-  const eth = n => n.toFixed(6);
-  const short = a => a.slice(0, 6) + '…' + a.slice(-4);
+  const eth = n => Number(n || 0).toFixed(6);
+  const short = a => (a && a.length > 12) ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '');
   const el = id => document.getElementById(id);
 
   function ago(ts) {
@@ -48,34 +52,167 @@
     return Math.floor(s / 3600) + 'h ago';
   }
 
-  // ---------- hounds ----------
-  window.SEED_HOUNDS.forEach((seed, i) => {
+  // ---------- hound spawning (shared by demo seed data and live roster sync) ----------
+  function spawnHound(seed) {
     const angle = Math.random() * Math.PI * 2;
-    hounds.push({
+    return {
       name: seed.name,
       kennel: seed.kennel,
-      pack: window.PACKS[window.wcHash(seed.kennel) % window.PACKS.length],
-      badge: BADGES[window.wcHash(seed.kennel + 'b') % BADGES.length],
+      pack: resolvePack(seed.pack),
+      badge: seed.badge || BADGES[window.wcHash(seed.kennel + 'b') % BADGES.length],
       x: rand(120, FIELD_W - 120),
       y: rand(140, FIELD_H - 120),
       vx: Math.cos(angle) * SPEED,
       vy: Math.sin(angle) * SPEED,
       state: 'roam',
       partner: null,
-      balance: rand(0.0104, 0.09),
-      wins: 0, losses: 0, streak: 0,
+      balance: seed.balanceEth ?? seed.balance ?? rand(0.0104, 0.09),
+      wins: seed.wins || 0,
+      losses: seed.losses || 0,
+      streak: seed.streak || 0,
       bob: Math.random() * 10,
       flip: Math.random() < 0.5,
       glow: 0
-    });
-  });
+    };
+  }
 
-  // pack neighbour chains, drawn as the faint lines across the yard
-  const links = [];
-  window.PACKS.forEach(p => {
-    const members = hounds.filter(h => h.pack.tag === p.tag);
-    for (let i = 0; i < members.length - 1; i++) links.push([members[i], members[i + 1]]);
-  });
+  function resolvePack(p) {
+    if (p && typeof p === 'object' && p.tag) return p;
+    if (typeof p === 'string') {
+      const found = window.PACKS.find(x => x.tag === p || x.name === p);
+      if (found) return found;
+    }
+    return window.PACKS[window.wcHash(String(p || Math.random())) % window.PACKS.length];
+  }
+
+  function findHound(ref) {
+    if (!ref) return null;
+    return hounds.find(h => h.kennel === ref || h.name === ref) || null;
+  }
+
+  // demo roster, only used while mode === 'demo'
+  window.SEED_HOUNDS.forEach(s => hounds.push(spawnHound(s)));
+
+  // pack neighbour lines — recomputed whenever the roster changes shape
+  let links = [];
+  function rebuildLinks() {
+    links = [];
+    window.PACKS.forEach(p => {
+      const members = hounds.filter(h => h.pack.tag === p.tag);
+      for (let i = 0; i < members.length - 1; i++) links.push([members[i], members[i + 1]]);
+    });
+  }
+  rebuildLinks();
+
+  // ---------- live-mode roster sync ----------
+  function syncRoster(apiHounds) {
+    const seen = new Set();
+    apiHounds.forEach(h => {
+      if (!h || !h.kennel) return;
+      seen.add(h.kennel);
+      let hound = findHound(h.kennel);
+      if (!hound) {
+        hound = spawnHound(h);
+        hounds.push(hound);
+      } else {
+        hound.name = h.name || hound.name;
+        hound.pack = resolvePack(h.pack);
+        hound.badge = h.badge || hound.badge;
+        hound.balance = h.balanceEth ?? hound.balance;
+        hound.wins = h.wins ?? hound.wins;
+        hound.losses = h.losses ?? hound.losses;
+        hound.streak = h.streak ?? hound.streak;
+      }
+    });
+    // hounds the API no longer lists are dropped from the roster (rare — retirement/merge)
+    for (let i = hounds.length - 1; i >= 0; i--) {
+      if (!seen.has(hounds[i].kennel) && hounds[i].kennel !== undefined) {
+        if (live && (live.a === hounds[i] || live.b === hounds[i])) continue; // don't yank a talking dog
+        hounds.splice(i, 1);
+      }
+    }
+    rebuildLinks();
+  }
+
+  function normalizeFeedEntry(e) {
+    return {
+      a: e.a, b: e.b, kA: e.kA || e.a, kB: e.kB || e.b,
+      deal: !!e.deal,
+      amount: e.amountEth ?? e.amount ?? 0,
+      ts: e.ts || Date.now(),
+      turns: e.turns || []
+    };
+  }
+
+  function applyLiveEncounter(serverLive) {
+    if (!serverLive) {
+      if (live && live.fromApi) { live = null; renderTheatre(); }
+      return;
+    }
+    const a = findHound(serverLive.a);
+    const b = findHound(serverLive.b);
+    if (!a || !b) return; // roster hasn't caught up yet — try again next poll
+
+    if (a.state !== 'talk' || a.partner !== b) { a.state = 'talk'; a.partner = b; }
+    if (b.state !== 'talk' || b.partner !== a) { b.state = 'talk'; b.partner = a; }
+
+    const decay = serverLive.decay || DECAY;
+    const done = serverLive.deal === true || serverLive.deal === false;
+    live = {
+      a, b,
+      bone: serverLive.boneEth || 0,
+      decay,
+      i: serverLive.i ?? 0,
+      done,
+      deal: serverLive.deal,
+      turns: (serverLive.turns || []).map(t => ({
+        who: (t.who === a.kennel || t.who === a.name) ? a : b,
+        text: t.text
+      })),
+      fromApi: true
+    };
+    renderTheatre();
+
+    if (done) {
+      setTimeout(() => {
+        if (a.partner === b) { a.state = 'roam'; a.partner = null; releaseVelocity(a); }
+        if (b.partner === a) { b.state = 'roam'; b.partner = null; releaseVelocity(b); }
+      }, RESULT_HOLD_MS);
+    }
+  }
+
+  function releaseVelocity(h) {
+    const ang = Math.random() * Math.PI * 2;
+    h.vx = Math.cos(ang) * SPEED;
+    h.vy = Math.sin(ang) * SPEED;
+  }
+
+  // ---------- polling ----------
+  async function pollApi() {
+    const data = await window.wcFetchYard();
+    apiTried = true;
+    if (!data) {
+      updateSourcePill();
+      return; // stay in whatever mode we were already in
+    }
+    mode = 'live';
+    syncRoster(data.hounds || []);
+    if (data.stats) {
+      settledTotal = data.stats.settledEth ?? settledTotal;
+      settlementCount = data.stats.settlements ?? settlementCount;
+    }
+    if (Array.isArray(data.feed)) feed = data.feed.map(normalizeFeedEntry);
+    applyLiveEncounter(data.live || null);
+    renderStats(); renderFeed(); renderTicker(); renderReplay();
+    updateSourcePill();
+  }
+
+  function updateSourcePill() {
+    const pill = el('stat-source');
+    if (!pill) return;
+    pill.textContent = mode === 'live' ? 'LIVE' : 'DEMO';
+    pill.className = mode === 'live' ? 'src-live' : 'src-demo';
+  }
 
   // ---------- viewport ----------
   function resize() {
@@ -90,10 +227,10 @@
   window.addEventListener('resize', resize);
   function baseScale() { return Math.max(VW / FIELD_W, VH / FIELD_H); }
 
-  // ---------- encounters ----------
+  // ---------- demo-mode encounters (only run while mode === 'demo') ----------
   const fmt = (tpl, v) => tpl.replace(/\{(\w+)\}/g, (_, k) => v[k] !== undefined ? v[k] : '{' + k + '}');
 
-  function startEncounter() {
+  function startDemoEncounter() {
     const idle = hounds.filter(h => h.state === 'roam');
     if (idle.length < 2) return;
     const a = pick(idle);
@@ -115,7 +252,7 @@
     const finalBone = bone * Math.pow(DECAY, 3);
 
     live = {
-      a, b, bone, deal, amount: deal ? finalBone : 0, i: -1, t: 0, done: false,
+      a, b, bone, decay: DECAY, deal, i: -1, t: 0, done: false, fromApi: false,
       turns: [
         { who: a, text: fmt(pick(window.LINES.open), vals) },
         { who: b, text: fmt(pick(window.LINES.counter), Object.assign({}, vals, { bone: eth(bone * DECAY) })) },
@@ -126,25 +263,24 @@
     renderTheatre();
   }
 
-  function resolveEncounter() {
+  function resolveDemoEncounter() {
     const { a, b, deal, amount } = live;
+    const finalAmount = deal ? live.bone * Math.pow(DECAY, 3) : 0;
     if (deal) {
-      b.balance += amount;
-      a.balance = Math.max(0, a.balance - amount * 0.35);
+      b.balance += finalAmount;
+      a.balance = Math.max(0, a.balance - finalAmount * 0.35);
       b.wins++; a.losses++; b.streak++; a.streak = 0;
-      settledTotal += amount;
+      settledTotal += finalAmount;
       b.glow = 1.6;
     } else { a.streak = 0; b.streak = 0; }
     settlementCount++;
 
-    feed.unshift({ a: a.name, b: b.name, kA: a.kennel, kB: b.kennel, deal, amount, ts: Date.now(), turns: live.turns.slice(), bone: live.bone });
+    feed.unshift({ a: a.name, b: b.name, kA: a.kennel, kB: b.kennel, deal, amount: finalAmount, ts: Date.now(), turns: live.turns.slice() });
     if (feed.length > 60) feed.pop();
 
     a.state = b.state = 'roam';
     a.partner = b.partner = null;
-    const ang = Math.random() * Math.PI * 2;
-    a.vx = Math.cos(ang) * SPEED; a.vy = Math.sin(ang) * SPEED;
-    b.vx = -a.vx; b.vy = -a.vy;
+    releaseVelocity(a); releaseVelocity(b);
 
     live.done = true;
     renderFeed(); renderTicker(); renderStats(); renderReplay();
@@ -179,23 +315,26 @@
       }
     }
 
-    if (!live) {
-      nextMeet -= dt;
-      if (nextMeet <= 0) startEncounter();
-    } else if (!live.done) {
-      if (live.a.state === 'talk' && live.b.state === 'talk') {
-        live.t += dt * 1000;
-        const want = Math.floor(live.t / TURN_MS);
-        if (want > live.i && live.i < live.turns.length - 1) {
-          live.i = Math.min(want, live.turns.length - 1);
-          renderTheatre();
-        } else if (live.i >= live.turns.length - 1 && live.t > TURN_MS * (live.turns.length + 0.6)) {
-          resolveEncounter();
-          renderTheatre();
-          setTimeout(() => { if (live && live.done) { live = null; renderTheatre(); } }, 6000);
+    if (mode === 'demo') {
+      if (!live) {
+        nextMeet -= dt;
+        if (nextMeet <= 0) startDemoEncounter();
+      } else if (!live.done && !live.fromApi) {
+        if (live.a.state === 'talk' && live.b.state === 'talk') {
+          live.t += dt * 1000;
+          const want = Math.floor(live.t / TURN_MS);
+          if (want > live.i && live.i < live.turns.length - 1) {
+            live.i = Math.min(want, live.turns.length - 1);
+            renderTheatre();
+          } else if (live.i >= live.turns.length - 1 && live.t > TURN_MS * (live.turns.length + 0.6)) {
+            resolveDemoEncounter();
+            renderTheatre();
+            setTimeout(() => { if (live && live.done) { live = null; renderTheatre(); } }, RESULT_HOLD_MS);
+          }
         }
       }
     }
+    // live mode: encounter state is entirely server-driven via applyLiveEncounter(), nothing to tick here
 
     if (following && live && !live.done) {
       cam.tx = (live.a.x + live.b.x) / 2;
@@ -209,7 +348,7 @@
     cam.z += (cam.tz - cam.z) * Math.min(1, dt * 1.5);
   }
 
-  // ---------- rendering ----------
+  // ---------- rendering (unchanged visuals) ----------
   const query = () => (el('hound-search').value || '').trim().toLowerCase();
 
   function drawGrid() {
@@ -233,7 +372,6 @@
 
     drawGrid();
 
-    // pack lines
     ctx.lineWidth = 0.7 / s * 60 * 0.02;
     for (const [p, q] of links) {
       ctx.strokeStyle = 'rgba(140, 170, 210, 0.10)';
@@ -243,7 +381,6 @@
       ctx.stroke();
     }
 
-    // negotiation ring + tether
     if (live && !live.done && live.a.state === 'talk' && live.b.state === 'talk') {
       const mx = (live.a.x + live.b.x) / 2;
       const my = (live.a.y + live.b.y) / 2 - DOG * 0.45;
@@ -261,7 +398,7 @@
       ctx.fillStyle = '#f0b03c';
       ctx.font = '11px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('BONE ' + eth(live.bone * Math.pow(DECAY, Math.max(0, live.i))) + ' ETH', mx, my - r - 8);
+      ctx.fillText('BONE ' + eth(live.bone * Math.pow(live.decay, Math.max(0, live.i))) + ' ETH', mx, my - r - 8);
     }
 
     const q = query();
@@ -273,7 +410,6 @@
       const x = h.x - DOG / 2;
       const y = h.y - DOG + bob;
 
-      // ground shadow
       ctx.fillStyle = 'rgba(0,0,0,0.42)';
       ctx.beginPath();
       ctx.ellipse(h.x, h.y + 1, DOG * 0.30, DOG * 0.09, 0, 0, Math.PI * 2);
@@ -289,7 +425,6 @@
         window.wcDrawDog(ctx, h.kennel, x, y, PX, h.flip);
       }
 
-      // status badge, bottom-right of the sprite
       const bx = h.x + DOG * 0.30, by = h.y - DOG * 0.16;
       ctx.fillStyle = 'rgba(226, 230, 220, 0.92)';
       ctx.beginPath(); ctx.arc(bx, by, 8, 0, Math.PI * 2); ctx.fill();
@@ -300,7 +435,6 @@
       ctx.fillText(h.badge, bx, by + 0.5);
       ctx.textBaseline = 'alphabetic';
 
-      // name label
       ctx.font = '11px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = talking ? '#e8ead9' : (hit ? '#5ec8e8' : 'rgba(232,234,217,0.62)');
@@ -316,7 +450,7 @@
   // ---------- panels ----------
   function renderStats() {
     el('stat-settled').textContent = eth(settledTotal) + ' ETH';
-    el('stat-settlements').textContent = settlementCount.toLocaleString('en-US');
+    el('stat-settlements').textContent = Number(settlementCount).toLocaleString('en-US');
     el('stat-hounds').textContent = hounds.length;
   }
 
@@ -328,7 +462,7 @@
       li.className = 'turn ' + (t.who === sideB ? 'side-b' : (idx % 2 ? 'side-b' : 'side-a'));
       const sp = document.createElement('p');
       sp.className = 'turn-speaker';
-      sp.textContent = t.who ? t.who.name : t.name;
+      sp.textContent = t.who ? t.who.name : (t.name || '');
       const tx = document.createElement('p');
       tx.className = 'turn-text' + (idx === upTo && typing ? ' turn-typing' : '');
       tx.textContent = t.text;
@@ -346,7 +480,7 @@
     const badge = el('theatre-badge');
     badge.className = live.done ? (live.deal ? 'badge-done' : 'badge-live') : 'badge-live';
     badge.textContent = live.done ? (live.deal ? 'SETTLED' : 'NO DEAL') : 'LIVE';
-    el('theatre-bone').textContent = 'BONE ' + eth(live.bone * Math.pow(DECAY, Math.max(0, live.i))) + ' ETH';
+    el('theatre-bone').textContent = 'BONE ' + eth(live.bone * Math.pow(live.decay, Math.max(0, live.i))) + ' ETH';
     paintTranscript(live.turns, live.i, !live.done, live.b);
   }
 
@@ -389,7 +523,7 @@
       li.className = 'feed-row';
       const amt = document.createElement('span');
       amt.className = 'feed-amount ' + (r.deal ? 'feed-deal' : 'feed-nodeal');
-      amt.textContent = r.deal ? '+' + r.amount.toFixed(5) : 'NO DEAL';
+      amt.textContent = r.deal ? '+' + Number(r.amount).toFixed(5) : 'NO DEAL';
       const body = document.createElement('span');
       const bA = document.createElement('button');
       bA.className = 'linkish'; bA.textContent = r.a; bA.onclick = () => focusHound(r.a);
@@ -410,7 +544,7 @@
     const items = feed.slice(0, 24);
     const html = items.map(r =>
       '<span class="tick ' + (r.deal ? 'deal' : '') + '"><b>' +
-      (r.deal ? 'SETTLED ' + r.amount.toFixed(5) + ' ETH' : 'NO DEAL') + '</b> ' +
+      (r.deal ? 'SETTLED ' + Number(r.amount).toFixed(5) + ' ETH' : 'NO DEAL') + '</b> ' +
       short(r.kA) + ' ↔ ' + short(r.kB) + '<i> ' + ago(r.ts) + '</i></span>'
     ).join('');
     track.innerHTML = html ? html + html
@@ -465,14 +599,15 @@
     live = {
       a: { name: replay.a }, b: { name: replay.b },
       turns: replay.turns, i: replay.turns.length - 1, done: true,
-      deal: replay.deal, bone: replay.bone
+      deal: replay.deal, bone: replay.turns.length ? replay.amount : 0, decay: DECAY,
+      fromApi: false
     };
     el('theatre').style.display = 'block';
     el('theatre-names').innerHTML = replay.a + ' <span class="theatre-vs">vs</span> ' + replay.b;
     const badge = el('theatre-badge');
     badge.className = replay.deal ? 'badge-done' : 'badge-live';
     badge.textContent = replay.deal ? 'SETTLED' : 'NO DEAL';
-    el('theatre-bone').textContent = 'BONE ' + eth(replay.bone) + ' ETH';
+    el('theatre-bone').textContent = 'BONE ' + eth(replay.amount) + ' ETH';
     paintTranscript(replay.turns, replay.turns.length - 1, false, null);
     setTimeout(() => { live = null; renderTheatre(); }, 12000);
   });
@@ -510,10 +645,15 @@
   renderFeed();
   renderTicker();
   renderRecap();
+  updateSourcePill();
   el('theatre').style.display = 'none';
   el('replay-card').style.display = 'none';
 
-  setInterval(() => { renderFeed(); renderTicker(); if (feed[0]) el('replay-when').textContent = 'REPLAY · ' + ago(feed[0].ts); }, 15000);
+  pollApi();
+  setInterval(pollApi, window.WC_API_POLL_MS || 4000);
+  setInterval(() => {
+    if (feed[0]) el('replay-when').textContent = 'REPLAY · ' + ago(feed[0].ts);
+  }, 15000);
 
   let last = performance.now();
   (function loop(now) {
