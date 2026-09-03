@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yards — WoofCash</title>
+<link rel="stylesheet" href="styles/woofcash.css">
+</head>
+<body>
+<main class="yards-page">
+  <div id="logo-slot"></div>
+  <h1 class="yards-title">WoofCash</h1>
+  <p class="yards-sub">The multi-chain agentic yard. Pick a territory.</p>
+  <div class="yard-grid" id="yard-grid"></div>
+  <div class="pack-strip" id="pack-strip"></div>
+</main>
+<script src="scripts/pixels.js"></script>
+<script src="scripts/data.js"></script>
+<script>
+document.getElementById('logo-slot').appendChild(wcDogCanvas('woofcash', 3));
+wcSetFavicon();
+const grid = document.getElementById('yard-grid');
+YARDS.forEach(y => {
+  const card = document.createElement(y.open ? 'a' : 'div');
+  card.className = 'yard-card' + (y.open ? '' : ' locked');
+  card.style.setProperty('--card-accent', y.color);
+  if (y.open) card.href = 'yard.html';
+  card.innerHTML = '<h3>' + y.label + '</h3><p class="yard-chainid">CHAIN ' + (y.chainId || '—') + ' · ' + y.launchpad + '</p>';
+  grid.appendChild(card);
+});
+const strip = document.getElementById('pack-strip');
+SEED_HOUNDS.slice(0, 12).forEach(h => {
+  const box = document.createElement('div');
+  box.className = 'strip-dog';
+  box.appendChild(wcDogCanvas(h.kennel, 2));
+  const label = document.createElement('span');
+  label.textContent = h.name;
+  box.appendChild(label);
+  strip.appendChild(box);
+});
+</script>
+</body>
+</html>
